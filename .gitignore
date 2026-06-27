@@ -49,7 +49,8 @@ server/node_modules/
 server/.env
 server/.npm
 
-# Keystore (generated at build time from secrets, not committed)
-app/android/app/swapapp-release.jks
+# Keystores (contain signing secrets, decoded from CI secrets at build time)
+*.jks
+*.keystore
 app/android/local.properties
 app/android/key.properties
