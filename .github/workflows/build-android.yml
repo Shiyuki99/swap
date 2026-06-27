@@ -1,0 +1,94 @@
+name: Build Flutter APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on main
+        run: |
+          if ! git branch -r --contains HEAD | grep -q 'origin/main'; then
+            echo "❌ This tag is not on the main branch. Skipping build."
+            exit 1
+          fi
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.2
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/swapapp-release.jks
+
+      - name: Create local.properties
+        run: |
+          echo "STORE_FILE=swapapp-release.jks" > android/local.properties
+          echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> android/local.properties
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> android/local.properties
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> android/local.properties
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Patch flutter_nfc_hce for URI records (iOS compatibility)
+        run: |
+          NFC_FILE="$HOME/.pub-cache/hosted/pub.dev/flutter_nfc_hce-0.1.8/android/src/main/kotlin/com/novice/flutter_nfc_hce/KHostApduService.kt"
+          
+          sed -i 's/if(mimeType == "text\/plain") {/if(mimeType == "text\/plain" \&\& !content.startsWith("http")) {/' "$NFC_FILE"
+          
+          sed -i '/return NdefRecord(NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_TEXT, id, recordPayload)/a\    }\n\n    private fun createUriRecord(uri: String, id: ByteArray): NdefRecord {\n        val prefixCode: Byte\n        val uriBody: String\n        if (uri.startsWith("https:\/\/www.")) {\n            prefixCode = 0x02.toByte()\n            uriBody = uri.substring(12)\n        } else if (uri.startsWith("http:\/\/www.")) {\n            prefixCode = 0x01.toByte()\n            uriBody = uri.substring(11)\n        } else if (uri.startsWith("https:\/\/")) {\n            prefixCode = 0x04.toByte()\n            uriBody = uri.substring(8)\n        } else if (uri.startsWith("http:\/\/")) {\n            prefixCode = 0x03.toByte()\n            uriBody = uri.substring(7)\n        } else {\n            prefixCode = 0x00.toByte()\n            uriBody = uri\n        }\n        val uriBytes = uriBody.toByteArray(charset("UTF-8"))\n        val payload = ByteArray(1 + uriBytes.size)\n        payload[0] = prefixCode\n        System.arraycopy(uriBytes, 0, payload, 1, uriBytes.size)\n        return NdefRecord(NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_URI, id, payload)' "$NFC_FILE"
+          
+          sed -i 's/return createTextRecord("en", content, id);/if(content.startsWith("http")) {\n            return createUriRecord(content, id)\n        }\n        return createTextRecord("en", content, id);/' "$NFC_FILE"
+          
+          grep -c "createUriRecord" "$NFC_FILE"
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/swapapp.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: swapapp-apk
+          path: app/build/app/outputs/flutter-apk/swapapp.apk
+
+      - name: Delete existing release if exists
+        run: gh release delete ${{ github.ref_name }} --yes --cleanup-tag=false || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: app/build/app/outputs/flutter-apk/swapapp.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
