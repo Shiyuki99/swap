@@ -169,8 +169,8 @@ class SwapSessionManager extends ChangeNotifier {
       if (_isCancelled) return null;
 
       // Phase 2: Start concurrent operations
+      await _startConcurrentOperations(); // we make them locally available before server
       await _uploadProfileToServer();
-      await _startConcurrentOperations();
 
       // Check cancellation after starting operations
       if (_isCancelled) return null;
