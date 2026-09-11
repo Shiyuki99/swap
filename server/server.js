@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
+const { StatsStore } = require('./stats-store');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,7 +16,7 @@ const sessions = new Map();
 // Auto-cleanup expired sessions every minute (5 minute TTL)
 const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_SESSIONS = 10000; // Safe cap for 2 vCPUs / 4 GB VPS (~10 MB max)
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
    const now = Date.now();
    for (const [id, session] of sessions) {
       if (now - session.createdAt > SESSION_TTL_MS) {
@@ -24,35 +25,17 @@ setInterval(() => {
       }
    }
 }, 60 * 1000); // Every 1 minute
+cleanupTimer.unref();
+
+function stopCleanup() {
+   clearInterval(cleanupTimer);
+}
 
 // ============================================================================
 // ANALYTICS & TRACKING
 // ============================================================================
-const fs = require('fs');
-const statsFile = path.join(__dirname, 'stats.json');
-
-let appStats = {
-   totalSessionsCreated: 0,
-   totalAppOpens: 0,
-   uniqueUsers: {}
-};
-
-if (fs.existsSync(statsFile)) {
-   try {
-      const data = JSON.parse(fs.readFileSync(statsFile, 'utf8'));
-      appStats.totalSessionsCreated = data.totalSessionsCreated || 0;
-      appStats.totalAppOpens = data.totalAppOpens || 0;
-      appStats.uniqueUsers = data.uniqueUsers || {};
-   } catch (err) {
-      console.error('Error loading stats.json:', err);
-   }
-}
-
-function saveStats() {
-   fs.writeFile(statsFile, JSON.stringify(appStats, null, 2), (err) => {
-      if (err) console.error('Error saving stats.json:', err);
-   });
-}
+const statsFile = process.env.SWAP_STATS_FILE || path.join(__dirname, 'stats.json');
+app.locals.statsStore = new StatsStore(statsFile);
 
 const LATEST_APP_VERSION = '1.0.0+5'; // Defines current version
 
@@ -484,12 +467,20 @@ app.get('/api/check-update', (req, res) => {
 // ============================================================================
 // START SERVER
 // ============================================================================
-app.listen(PORT, '0.0.0.0', () => {
-   console.log(`\n  🔄 SWAP Web Server running at http://0.0.0.0:${PORT}\n`);
-   console.log(`  Routes:`);
-   console.log(`    POST /api/session          — Create session (from mobile app)`);
-   console.log(`    GET  /view/:sessionId       — View profile page`);
-   console.log(`    GET  /api/session/:sessionId — Get session data (JSON)`);
-   console.log(`    POST /api/track/open       — Track app opens`);
-   console.log(`    GET  /api/stats            — View usage statistics\n`);
-});
+function startServer(port = PORT) {
+   return app.listen(port, '0.0.0.0', () => {
+      console.log(`\n  🔄 SWAP Web Server running at http://0.0.0.0:${port}\n`);
+      console.log(`  Routes:`);
+      console.log(`    POST /api/session          — Create session (from mobile app)`);
+      console.log(`    GET  /view/:sessionId       — View profile page`);
+      console.log(`    GET  /api/session/:sessionId — Get session data (JSON)`);
+      console.log(`    POST /api/track/open       — Track app opens`);
+      console.log(`    GET  /api/stats            — View usage statistics\n`);
+   });
+}
+
+if (require.main === module) {
+   startServer();
+}
+
+module.exports = { app, sessions, startServer, stopCleanup };
