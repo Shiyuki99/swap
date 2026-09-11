@@ -4,7 +4,7 @@ library;
 /// The domain for the SWAP web service
 /// In debug mode: your local machine's IP (phone must be on same WiFi)
 /// In release mode: your production domain
-const String _domain = 'swapapp.ddns.net';
+const String _domain = 'swapapp-web.onrender.com';
 const int profilesNumber = 2;
 
 String get swapDomain => _domain;
