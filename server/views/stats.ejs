@@ -100,28 +100,21 @@
 <body>
    <main>
       <div class="container">
-         <h1>App Usage Stats</h1>
+         <h1>Session Usage Stats</h1>
 
          <div class="stats-grid">
             <div class="stat-card">
                <div class="stat-value">
-                  <%= stats.totalAppOpens || 0 %>
+                  <%= stats.postApiSession %>
                </div>
-               <div class="stat-label">Total App Opens</div>
+               <div class="stat-label">POST /api/session</div>
             </div>
 
             <div class="stat-card">
                <div class="stat-value">
-                  <%= stats.totalUniqueUsers || 0 %>
+                  <%= stats.getSession %>
                </div>
-               <div class="stat-label">Unique Users</div>
-            </div>
-
-            <div class="stat-card">
-               <div class="stat-value">
-                  <%= stats.totalSessionsCreated || 0 %>
-               </div>
-               <div class="stat-label">Sessions Created</div>
+               <div class="stat-label">GET session</div>
             </div>
          </div>
 

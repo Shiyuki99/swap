@@ -191,6 +191,52 @@ function validateAndSanitizeProfile(rawProfile) {
    };
 }
 
+function getAuthorizedSession(sessionId, signature) {
+   const session = sessions.get(sessionId);
+
+   if (!session) {
+      return { status: 404, error: 'Session not found' };
+   }
+
+   if (session.token !== signature) {
+      return { status: 403, error: 'Invalid token' };
+   }
+
+   return { status: 200, session };
+}
+
+function renderHtmlSessionError(res, { status }) {
+   if (status === 404) {
+      return res.status(404).render('error', {
+         title: 'Session Not Found',
+         message: 'This swap session does not exist or has expired.',
+      });
+   }
+
+   return res.status(403).render('error', {
+      title: 'Unauthorized',
+      message: 'Invalid or missing signature token.',
+   });
+}
+
+function renderJsonSessionError(res, { status, error }) {
+   return res.status(status).json({ error });
+}
+
+function authorizeSession(renderError) {
+   return (req, res, next) => {
+      const result = getAuthorizedSession(req.params.sessionId, req.query.sig);
+
+      if (result.status !== 200) {
+         return renderError(res, result);
+      }
+
+      req.swapSession = result.session;
+      req.app.locals.statsStore.incrementGetSession();
+      next();
+   };
+}
+
 // ============================================================================
 // ROUTES
 // ============================================================================
@@ -239,12 +285,7 @@ app.post('/api/session', sessionCreateLimiter, (req, res) => {
       createdAt: Date.now(),
    });
 
-   // Update tracking stats
-   appStats.totalSessionsCreated++;
-   if (cleanProfile.name) {
-      appStats.uniqueUsers[cleanProfile.name] = true;
-   }
-   saveStats();
+   req.app.locals.statsStore.incrementPostApiSession();
 
    console.log(`[SESSION] Created: ${sessionId} for "${cleanProfile.name}" (${sessions.size} active)`);
 
@@ -255,28 +296,9 @@ app.post('/api/session', sessionCreateLimiter, (req, res) => {
 });
 
 // GET /view/:sessionId — Display profile page
-app.get('/view/:sessionId', viewLimiter, (req, res) => {
-   const { sessionId } = req.params;
-   const { sig } = req.query;
-
-   const session = sessions.get(sessionId);
-
-   if (!session) {
-      return res.status(404).render('error', {
-         title: 'Session Not Found',
-         message: 'This swap session does not exist or has expired.',
-      });
-   }
-
-   if (session.token !== sig) {
-      return res.status(403).render('error', {
-         title: 'Unauthorized',
-         message: 'Invalid or missing signature token.',
-      });
-   }
-
+app.get('/view/:sessionId', viewLimiter, authorizeSession(renderHtmlSessionError), (req, res) => {
    // Build the platform data for the template
-   const { profile } = session;
+   const { profile } = req.swapSession;
    const socialLinks = profile.socialLinks || {};
 
    // Filter to only platforms that have data (username OR link)
@@ -328,21 +350,9 @@ app.get('/view/:sessionId', viewLimiter, (req, res) => {
    });
 });
 
-// GET /api/session/:sessionId — JSON API (for potential future use)
-app.get('/api/session/:sessionId', viewLimiter, (req, res) => {
-   const { sessionId } = req.params;
-   const { sig } = req.query;
-
-   const session = sessions.get(sessionId);
-
-   if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-   }
-
-   if (session.token !== sig) {
-      return res.status(403).json({ error: 'Invalid token' });
-   }
-
+// GET /api/session/:sessionId — JSON API used as the mobile fallback
+app.get('/api/session/:sessionId', viewLimiter, authorizeSession(renderJsonSessionError), (req, res) => {
+   const session = req.swapSession;
    res.json({
       profile: session.profile,
       createdAt: session.createdAt,
@@ -370,36 +380,15 @@ app.delete('/api/session/:sessionId', viewLimiter, (req, res) => {
    res.json({ success: true });
 });
 
-// POST /api/track/open — Mobile app calls this when launched to track overall usage
-app.post('/api/track/open', viewLimiter, (req, res) => {
-   const { userId } = req.body || {};
-
-   appStats.totalAppOpens++;
-   if (userId) {
-      appStats.uniqueUsers[userId] = true;
-   }
-   saveStats();
-
-   res.json({ success: true });
-});
-
 // GET /api/stats — View tracking data (JSON)
 app.get('/api/stats', viewLimiter, (req, res) => {
-   res.json({
-      totalSessionsCreated: appStats.totalSessionsCreated,
-      totalAppOpens: appStats.totalAppOpens,
-      totalUniqueUsers: Object.keys(appStats.uniqueUsers).length
-   });
+   res.json(req.app.locals.statsStore.snapshot());
 });
 
 // GET /stats — View tracking data (UI)
 app.get('/stats', viewLimiter, (req, res) => {
    res.render('stats', {
-      stats: {
-         totalSessionsCreated: appStats.totalSessionsCreated,
-         totalAppOpens: appStats.totalAppOpens,
-         totalUniqueUsers: Object.keys(appStats.uniqueUsers).length
-      }
+      stats: req.app.locals.statsStore.snapshot(),
    });
 });
 
@@ -474,8 +463,8 @@ function startServer(port = PORT) {
       console.log(`    POST /api/session          — Create session (from mobile app)`);
       console.log(`    GET  /view/:sessionId       — View profile page`);
       console.log(`    GET  /api/session/:sessionId — Get session data (JSON)`);
-      console.log(`    POST /api/track/open       — Track app opens`);
-      console.log(`    GET  /api/stats            — View usage statistics\n`);
+      console.log(`    GET  /api/stats            — View usage statistics`);
+      console.log(`    GET  /stats                — View usage statistics page\n`);
    });
 }
 

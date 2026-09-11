@@ -107,7 +107,7 @@ The signed APK will be at `app/build/app/outputs/flutter-apk/app-release.apk`.
 
 ## Server (`server/`)
 
-Node.js + Express companion web server for temporary profile sharing, app update checks, and usage tracking.
+Node.js + Express companion web server for temporary profile sharing, app update checks, and aggregate session counters.
 
 ### Endpoints
 
@@ -115,10 +115,14 @@ Node.js + Express companion web server for temporary profile sharing, app update
 |--------|-------|-------------|
 | `POST` | `/api/session` | Create a swap session |
 | `GET` | `/view/:sessionId` | View shared profile page |
+| `GET` | `/api/session/:sessionId` | Read session data as JSON (mobile fallback) |
 | `DELETE` | `/api/session/:id` | Cancel a session |
 | `GET` | `/api/check-update` | Check for app updates |
-| `GET` | `/api/stats` | View usage statistics (JSON) |
+| `GET` | `/api/stats` | View public session counters as JSON |
+| `GET` | `/stats` | View public session counters as HTML |
 | `GET` | `/health` | Health check |
+
+The public stats endpoints expose exactly two aggregate counters: successful `POST /api/session` creations and successful authorized session reads. The read counter combines the HTML `/view/:sessionId` route and the JSON `/api/session/:sessionId` mobile fallback. Rejected, missing, and unauthorized requests are not counted.
 
 ### Getting Started
 
