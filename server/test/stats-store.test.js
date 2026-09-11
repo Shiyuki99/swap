@@ -100,3 +100,47 @@ test('serializes increments and atomically persists only the public schema', asy
   });
   assert.equal(fs.existsSync(`${filePath}.${process.pid}.tmp`), false);
 });
+
+test('serializes writes and recovers from a failed save', async () => {
+  const filePath = statsPath();
+  const writeFailure = new Error('injected write failure');
+  const errors = [];
+  let activeWrites = 0;
+  let maximumActiveWrites = 0;
+  let writeAttempts = 0;
+  const fileSystem = {
+    mkdir: fs.promises.mkdir,
+    async writeFile(...args) {
+      activeWrites += 1;
+      maximumActiveWrites = Math.max(maximumActiveWrites, activeWrites);
+      writeAttempts += 1;
+
+      try {
+        await new Promise((resolve) => setImmediate(resolve));
+        if (writeAttempts === 1) throw writeFailure;
+        await fs.promises.writeFile(...args);
+      } finally {
+        activeWrites -= 1;
+      }
+    },
+    rename: fs.promises.rename,
+  };
+  const { StatsStore } = require('../stats-store');
+  const store = new StatsStore(filePath, {
+    fileSystem,
+    logger: { error(...args) { errors.push(args); } },
+  });
+
+  store.incrementPostApiSession();
+  store.incrementGetSession();
+  await store.flush();
+
+  assert.equal(writeAttempts, 2);
+  assert.equal(maximumActiveWrites, 1);
+  assert.deepEqual(errors, [[`Error saving ${filePath}:`, writeFailure]]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(filePath, 'utf8')), {
+    postApiSession: 1,
+    getSession: 1,
+  });
+  assert.deepEqual(store.snapshot(), { postApiSession: 1, getSession: 1 });
+});
