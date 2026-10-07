@@ -737,7 +737,7 @@ class ApduProcessorTest {
         )
         assertArrayEquals(
             Apdu.A_ERROR,
-            processor.process(byteArrayOf(0x00, 0xB0.toByte(), 0x00, 0x00, 0x02)),
+            processor.process(byteArrayOf(0x00, 0xB0.toByte(), 0x00, 0x02, 0x0F)),
         )
     }
 
