@@ -1246,7 +1246,7 @@ git rm app/.agent/workflows/patch-nfc-uri.md
 - [ ] **Step 2: Run the full verification suite**
 
 Run: `./gradlew :app:testDebugUnitTest` (workdir `app/android`)
-Expected: BUILD SUCCESSFUL, all `com.shiyuki.swap.nfc.*` tests pass (28 total)
+Expected: BUILD SUCCESSFUL, all `com.shiyuki.swap.nfc.*` tests pass (31 total)
 
 Run: `flutter analyze` (workdir `app`)
 Expected: No issues found
