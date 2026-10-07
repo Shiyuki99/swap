@@ -896,10 +896,10 @@ No unit test for a `HostApduService` subclass (framework-bound); verification is
 ```kotlin
 package com.shiyuki.swap.nfc
 
+import android.content.pm.ApplicationInfo
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
-import com.shiyuki.swap.BuildConfig
 
 /**
  * App-owned HCE service emulating an NFC Forum Type 4 NDEF tag.
@@ -913,20 +913,26 @@ class SwapHostApduService : HostApduService() {
 
     private val processor = ApduProcessor(ndefFile = { activeNdefFile() })
 
+    // Debug-gated without AGP BuildConfig (off in Flutter projects): never
+    // log in release builds, and never log the session secret.
+    private val debuggable: Boolean by lazy {
+        0 != applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE
+    }
+
     private fun activeNdefFile(): ByteArray? {
         val session = PendingNfcSessionStore.shared.active() ?: return null
         return NdefSnapshotBuilder.buildNdefFile(session.url, packageName)
     }
 
     override fun processCommandApdu(commandApdu: ByteArray, extras: Bundle?): ByteArray {
-        if (BuildConfig.DEBUG) {
+        if (debuggable) {
             Log.d(TAG, "APDU ${commandApdu.size}B ${commandApdu.toHex()}")
         }
         return processor.process(commandApdu)
     }
 
     override fun onDeactivated(reason: Int) {
-        if (BuildConfig.DEBUG) Log.d(TAG, "Deactivated, reason=$reason")
+        if (debuggable) Log.d(TAG, "Deactivated, reason=$reason")
         processor.reset()
     }
 
