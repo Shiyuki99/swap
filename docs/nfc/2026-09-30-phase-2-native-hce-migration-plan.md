@@ -301,9 +301,11 @@ import org.junit.Test
 class PendingNfcSessionStoreTest {
     private val url = "https://swapapp-web.onrender.com/view/abcd1234?sig=wxyz9876"
 
-    private class FakeClock(var now: Long = 1000L) {
-        operator fun invoke(): Long = now
-    }
+    private class FakeClock(var now: Long = 1000L)
+
+    // NOTE: FakeClock cannot be passed directly (Kotlin does not coerce to
+    // function types), so each construction uses a lambda: `nowMillis = { clock.now }`
+    // for mutable clocks and `nowMillis = { 1000L }` for fixed clocks.
 
     @Test
     fun `set parses session id and secret from swap url`() {
