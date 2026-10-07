@@ -1,18 +1,22 @@
 package com.shiyuki.swap.nfc
 
 /**
- * Builds NDEF message bytes (URI + AAR) in pure Kotlin so the exact bytes
- * stay unit-testable without Robolectric. This replaces the old pub-cache
- * sed patch that created URI records inside the flutter_nfc_hce plugin.
+ * Builds NDEF message bytes (single URI record) in pure Kotlin so the exact
+ * bytes stay unit-testable without Robolectric. This replaces the old
+ * pub-cache sed patch that created URI records inside the flutter_nfc_hce
+ * plugin, and is byte-equivalent to NdefRecord.createUri() for the same
+ * prefix (NFC Forum URI prefix codes 0x00-0x04).
+ *
+ * Deliberately NO AAR: an AAR forces the tap intent to our package, but the
+ * manifest has no NDEF_DISCOVERED filter (and the VIEW filter declares a
+ * stale host), so taps died. URL-only lets the reader open the link.
  */
 object NdefSnapshotBuilder {
     private const val TNF_WELL_KNOWN: Int = 0x01
-    private const val TNF_EXTERNAL_TYPE: Int = 0x04
     private const val FLAG_MB: Int = 0x80
     private const val FLAG_ME: Int = 0x40
     private const val FLAG_SR: Int = 0x10
     private val RTD_URI = byteArrayOf(0x55) // 'U'
-    private val RTD_ANDROID_PKG = "android.com:pkg".toByteArray(Charsets.US_ASCII)
 
     // NFC Forum URI prefix codes, most specific first.
     private val URI_PREFIXES = listOf(
@@ -23,8 +27,8 @@ object NdefSnapshotBuilder {
     )
 
     /** Full NDEF file: 2-byte big-endian NLEN followed by the NDEF message. */
-    fun buildNdefFile(url: String, packageName: String): ByteArray {
-        val message = buildMessage(url, packageName)
+    fun buildNdefFile(url: String): ByteArray {
+        val message = buildMessage(url)
         val nlen = byteArrayOf(
             ((message.size shr 8) and 0xFF).toByte(),
             (message.size and 0xFF).toByte(),
@@ -32,18 +36,9 @@ object NdefSnapshotBuilder {
         return nlen + message
     }
 
-    /** URI record first (MB set) + AAR record last (ME set). */
-    fun buildMessage(url: String, packageName: String): ByteArray {
-        val uriRecord = record(TNF_WELL_KNOWN, RTD_URI, uriPayload(url), mb = true, me = false)
-        val aarRecord = record(
-            TNF_EXTERNAL_TYPE,
-            RTD_ANDROID_PKG,
-            packageName.toByteArray(Charsets.US_ASCII),
-            mb = false,
-            me = true,
-        )
-        return uriRecord + aarRecord
-    }
+    /** Single URI record (MB and ME set): header 0xD1, the classic URI tag. */
+    fun buildMessage(url: String): ByteArray =
+        record(TNF_WELL_KNOWN, RTD_URI, uriPayload(url), mb = true, me = true)
 
     /** URI payload: 1-byte NFC Forum prefix code + UTF-8 remainder. */
     fun uriPayload(url: String): ByteArray {

@@ -25,7 +25,7 @@ class SwapHostApduService : HostApduService() {
 
     private fun activeNdefFile(): ByteArray? {
         val session = PendingNfcSessionStore.shared.active() ?: return null
-        return NdefSnapshotBuilder.buildNdefFile(session.url, packageName)
+        return NdefSnapshotBuilder.buildNdefFile(session.url)
     }
 
     override fun onCreate() {

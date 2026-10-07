@@ -5,7 +5,7 @@ import org.junit.Test
 
 class ApduProcessorTest {
     private val url = "https://swapapp-web.onrender.com/view/abcd1234?sig=wxyz9876"
-    private val ndefFile = NdefSnapshotBuilder.buildNdefFile(url, "com.shiyuki.swap")
+    private val ndefFile = NdefSnapshotBuilder.buildNdefFile(url)
 
     private fun processorWith(file: ByteArray?) = ApduProcessor(ndefFile = { file })
 
@@ -34,11 +34,11 @@ class ApduProcessorTest {
         processor.process(Apdu.SELECT_NDEF_FILE)
         processor.process(Apdu.READ_BINARY_NLEN)
 
-        val first = processor.process(byteArrayOf(0x00, 0xB0.toByte(), 0x00, 0x00, 0x50))
-        assertArrayEquals(ndefFile.copyOfRange(0, 80) + Apdu.A_OKAY, first)
+        val first = processor.process(byteArrayOf(0x00, 0xB0.toByte(), 0x00, 0x00, 0x28))
+        assertArrayEquals(ndefFile.copyOfRange(0, 40) + Apdu.A_OKAY, first)
 
-        val rest = processor.process(byteArrayOf(0x00, 0xB0.toByte(), 0x00, 0x50, 0x50))
-        assertArrayEquals(ndefFile.copyOfRange(80, ndefFile.size) + Apdu.A_OKAY, rest)
+        val rest = processor.process(byteArrayOf(0x00, 0xB0.toByte(), 0x00, 0x28, 0x28))
+        assertArrayEquals(ndefFile.copyOfRange(40, ndefFile.size) + Apdu.A_OKAY, rest)
     }
 
     @Test

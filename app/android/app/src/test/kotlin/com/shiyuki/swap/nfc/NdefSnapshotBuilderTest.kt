@@ -7,7 +7,6 @@ import org.junit.Test
 
 class NdefSnapshotBuilderTest {
     private val url = "https://swapapp-web.onrender.com/view/abcd1234?sig=wxyz9876"
-    private val pkg = "com.shiyuki.swap"
 
     @Test
     fun `uri payload compresses https prefix to code 0x04`() {
@@ -27,32 +26,25 @@ class NdefSnapshotBuilderTest {
     }
 
     @Test
-    fun `message is uri record followed by aar record`() {
-        val message = NdefSnapshotBuilder.buildMessage(url, pkg)
-        // URI record: MB|SR|TNF1 header 0x91, typeLen 1, payloadLen, type 0x55 ('U'), prefix
-        assertEquals(0x91, message[0].toInt() and 0xFF)
+    fun `message is a single uri record with no aar`() {
+        val message = NdefSnapshotBuilder.buildMessage(url)
+        // Single record: MB|ME|SR|TNF1 header 0xD1, typeLen 1, payloadLen, type 0x55 ('U'), prefix
+        assertEquals(0xD1, message[0].toInt() and 0xFF)
         assertEquals(1, message[1].toInt())
-        val uriPayloadLen = message[2].toInt() and 0xFF
+        val payloadLen = message[2].toInt() and 0xFF
         assertEquals(0x55, message[3].toInt())
         assertEquals(0x04, message[4].toInt())
-        // AAR starts after the URI record: 3 header bytes + 1 type byte + payload
-        val aarStart = 4 + uriPayloadLen
-        assertEquals(0x54, message[aarStart].toInt()) // ME|SR|TNF4
-        assertEquals(15, message[aarStart + 1].toInt()) // typeLen of android.com:pkg
         assertEquals(
-            "android.com:pkg",
-            String(message.copyOfRange(aarStart + 3, aarStart + 3 + 15), Charsets.US_ASCII),
+            "swapapp-web.onrender.com/view/abcd1234?sig=wxyz9876",
+            String(message.copyOfRange(5, message.size), Charsets.UTF_8),
         )
-        assertEquals(
-            pkg,
-            String(message.copyOfRange(aarStart + 3 + 15, message.size), Charsets.US_ASCII),
-        )
+        assertEquals(4 + payloadLen, message.size)
     }
 
     @Test
     fun `ndef file prepends big endian NLEN equal to message size`() {
-        val message = NdefSnapshotBuilder.buildMessage(url, pkg)
-        val file = NdefSnapshotBuilder.buildNdefFile(url, pkg)
+        val message = NdefSnapshotBuilder.buildMessage(url)
+        val file = NdefSnapshotBuilder.buildNdefFile(url)
         assertEquals(message.size + 2, file.size)
         assertEquals((message.size shr 8) and 0xFF, file[0].toInt() and 0xFF)
         assertEquals(message.size and 0xFF, file[1].toInt() and 0xFF)
