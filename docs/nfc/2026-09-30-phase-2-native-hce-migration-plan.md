@@ -537,23 +537,23 @@ class NdefSnapshotBuilderTest {
     @Test
     fun `message is uri record followed by aar record`() {
         val message = NdefSnapshotBuilder.buildMessage(url, pkg)
-        // URI record: MB|SR|TNF1 header 0x91, typeLen 1, type 0x55 ('U'), payloadLen
-        assertEquals(0x91, message[0].toInt())
+        // URI record: MB|SR|TNF1 header 0x91, typeLen 1, payloadLen, type 0x55 ('U'), prefix
+        assertEquals(0x91, message[0].toInt() and 0xFF)
         assertEquals(1, message[1].toInt())
-        assertEquals(0x55, message[2].toInt())
-        val uriPayloadLen = message[3].toInt() and 0xFF
+        val uriPayloadLen = message[2].toInt() and 0xFF
+        assertEquals(0x55, message[3].toInt())
         assertEquals(0x04, message[4].toInt())
-        // AAR starts after the URI record: 2 header bytes + 1 type byte + payload
+        // AAR starts after the URI record: 3 header bytes + 1 type byte + payload
         val aarStart = 4 + uriPayloadLen
         assertEquals(0x54, message[aarStart].toInt()) // ME|SR|TNF4
         assertEquals(15, message[aarStart + 1].toInt()) // typeLen of android.com:pkg
         assertEquals(
             "android.com:pkg",
-            String(message.copyOfRange(aarStart + 2, aarStart + 2 + 15), Charsets.US_ASCII),
+            String(message.copyOfRange(aarStart + 3, aarStart + 3 + 15), Charsets.US_ASCII),
         )
         assertEquals(
             pkg,
-            String(message.copyOfRange(aarStart + 2 + 15, message.size), Charsets.US_ASCII),
+            String(message.copyOfRange(aarStart + 3 + 15, message.size), Charsets.US_ASCII),
         )
     }
 
@@ -640,8 +640,9 @@ object NdefSnapshotBuilder {
     }
 
     /**
-     * NDEF short record: [MB|ME|SR|TNF, TYPE_LEN, TYPE..., PAYLOAD...] with
-     * IL=0 and no ID field. Rejects payloads over 255 bytes (SR limit).
+     * NDEF short record: [MB|ME|SR|TNF, TYPE_LEN, PAYLOAD_LEN, TYPE...,
+     * PAYLOAD...] with IL=0 and no ID field. Rejects payloads over 255 bytes
+     * (SR limit).
      */
     fun record(tnf: Int, type: ByteArray, payload: ByteArray, mb: Boolean, me: Boolean): ByteArray {
         require(payload.size < 256) { "SR record payload must be < 256 bytes, was ${payload.size}" }
@@ -649,7 +650,7 @@ object NdefSnapshotBuilder {
         if (mb) header = header or FLAG_MB
         if (me) header = header or FLAG_ME
         header = header or FLAG_SR
-        return byteArrayOf(header.toByte(), type.size.toByte()) + type + payload
+        return byteArrayOf(header.toByte(), type.size.toByte(), payload.size.toByte()) + type + payload
     }
 }
 ```
