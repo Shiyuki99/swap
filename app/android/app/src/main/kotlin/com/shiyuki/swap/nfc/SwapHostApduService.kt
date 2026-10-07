@@ -28,6 +28,21 @@ class SwapHostApduService : HostApduService() {
         return NdefSnapshotBuilder.buildNdefFile(session.url, packageName)
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        // The system can bind this service on a field tap even after the app
+        // process died. Restore the persisted session so app-closed handoff
+        // keeps working; drop it when already expired.
+        val saved = SessionDisk.load(this)
+        if (saved != null) {
+            PendingNfcSessionStore.shared.restore(saved)
+            if (PendingNfcSessionStore.shared.active() == null) {
+                PendingNfcSessionStore.shared.clear()
+                SessionDisk.clear(this)
+            }
+        }
+    }
+
     override fun processCommandApdu(commandApdu: ByteArray, extras: Bundle?): ByteArray {
         if (debuggable) {
             Log.d(TAG, "APDU ${commandApdu.size}B ${commandApdu.toHex()}")

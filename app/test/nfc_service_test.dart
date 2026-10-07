@@ -44,6 +44,36 @@ void main() {
     expect(service.isHceActive, isFalse);
   });
 
+  test('writeUUID sets preferred service after session accepted', () async {
+    final methods = <String>[];
+    handler = (call) async {
+      methods.add(call.method);
+      return true;
+    };
+    await service.writeUUID('https://example.com/view/abc?sig=xyz');
+    expect(methods, ['startSession', 'setPreferred']);
+  });
+
+  test('writeUUID skips preferred service when session rejected', () async {
+    final methods = <String>[];
+    handler = (call) async {
+      methods.add(call.method);
+      return false;
+    };
+    await service.writeUUID('https://example.com/view/abc?sig=xyz');
+    expect(methods, ['startSession']);
+  });
+
+  test('stopSession unsets preferred service', () async {
+    final methods = <String>[];
+    handler = (call) async {
+      methods.add(call.method);
+      return true;
+    };
+    await service.stopSession();
+    expect(methods, ['stopSession', 'unsetPreferred']);
+  });
+
   test('isNFCAvailable reflects the native support check', () async {
     handler = (call) async => call.method == 'isSupported';
     expect(await service.isNFCAvailable(), isTrue);

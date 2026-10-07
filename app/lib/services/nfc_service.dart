@@ -31,7 +31,9 @@ class NFCService {
 
   /// Start broadcasting the URL via NFC HCE.
   /// The native side parses the session pair from the URL and stores an
-  /// immutable NDEF snapshot served by SwapHostApduService.
+  /// immutable NDEF snapshot served by SwapHostApduService. On success the
+  /// service is also set as the foreground preferred HCE service so our AIDs
+  /// win routing against other NDEF-HCE apps while sharing.
   Future<void> writeUUID(String urlToSend) async {
     debugPrint('[NFC] Starting HCE session');
     try {
@@ -40,7 +42,9 @@ class NFCService {
       _isHceActive = started == true;
       if (!_isHceActive) {
         debugPrint('[NFC] Native side rejected the session URL');
+        return;
       }
+      await setPreferredService();
     } on PlatformException catch (e) {
       debugPrint('[NFC] Error starting HCE: ${e.message}');
     }
@@ -51,10 +55,30 @@ class NFCService {
     debugPrint('[NFC] Stopping HCE session');
     try {
       await _channel.invokeMethod<bool>('stopSession');
+      await unsetPreferredService();
     } on PlatformException catch (e) {
       debugPrint('[NFC] Error stopping HCE: ${e.message}');
     } finally {
       _isHceActive = false;
+    }
+  }
+
+  /// Route our AIDs to SwapHostApduService while the app is foreground.
+  /// No-op on failure — HCE still serves, just without routing priority.
+  Future<void> setPreferredService() async {
+    try {
+      await _channel.invokeMethod<bool>('setPreferred');
+    } on PlatformException catch (e) {
+      debugPrint('[NFC] Error setting preferred service: ${e.message}');
+    }
+  }
+
+  /// Release the foreground preferred-service routing.
+  Future<void> unsetPreferredService() async {
+    try {
+      await _channel.invokeMethod<bool>('unsetPreferred');
+    } on PlatformException catch (e) {
+      debugPrint('[NFC] Error unsetting preferred service: ${e.message}');
     }
   }
 

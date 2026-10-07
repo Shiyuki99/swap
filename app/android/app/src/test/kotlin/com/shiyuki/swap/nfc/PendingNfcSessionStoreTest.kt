@@ -93,4 +93,39 @@ class PendingNfcSessionStoreTest {
     fun `shared instance exists for service and channel`() {
         assertNotNull(PendingNfcSessionStore.shared)
     }
+
+    @Test
+    fun `restore keeps original ttl window and stays active`() {
+        val clock = FakeClock()
+        val store = PendingNfcSessionStore(nowMillis = { clock.now })
+        val session = PendingNfcSession(
+            sessionId = "abcd1234",
+            sessionSecret = "wxyz9876",
+            url = url,
+            createdAtMillis = 1000L,
+            expiresAtMillis = 1000L + PendingNfcSessionStore.DEFAULT_TTL_MILLIS,
+        )
+        clock.now = 2000L
+        store.restore(session)
+        val active = store.active()
+        assertNotNull(active)
+        assertEquals(1000L + PendingNfcSessionStore.DEFAULT_TTL_MILLIS, active!!.expiresAtMillis)
+    }
+
+    @Test
+    fun `restored expired session is inactive`() {
+        val clock = FakeClock()
+        val store = PendingNfcSessionStore(nowMillis = { clock.now })
+        store.restore(
+            PendingNfcSession(
+                sessionId = "abcd1234",
+                sessionSecret = "wxyz9876",
+                url = url,
+                createdAtMillis = 1000L,
+                expiresAtMillis = 2000L,
+            ),
+        )
+        clock.now = 2000L
+        assertNull(store.active())
+    }
 }

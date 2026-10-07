@@ -41,6 +41,11 @@ class PendingNfcSessionStore(
         current.set(null)
     }
 
+    /** Restores a previously persisted session untouched (keeps original TTL window). */
+    fun restore(session: PendingNfcSession) {
+        current.set(session)
+    }
+
     companion object {
         /** Matches the existing five-minute server session TTL (audit baseline). */
         const val DEFAULT_TTL_MILLIS: Long = 5L * 60L * 1000L
