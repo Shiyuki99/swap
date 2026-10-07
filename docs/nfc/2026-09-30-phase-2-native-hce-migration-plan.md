@@ -1024,7 +1024,7 @@ object NfcMethodChannel {
     }
 
     private fun hasNfcHce(context: Context): Boolean =
-        context.packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HCE)
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)
 
     private fun isNfcEnabled(context: Context): Boolean =
         NfcAdapter.getDefaultAdapter(context)?.isEnabled == true
