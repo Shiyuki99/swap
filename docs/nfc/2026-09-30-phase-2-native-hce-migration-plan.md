@@ -310,7 +310,7 @@ class PendingNfcSessionStoreTest {
     @Test
     fun `set parses session id and secret from swap url`() {
         val clock = FakeClock()
-        val store = PendingNfcSessionStore(nowMillis = clock)
+        val store = PendingNfcSessionStore(nowMillis = { clock.now })
         val session = store.set(url)
         assertNotNull(session)
         assertEquals("abcd1234", session!!.sessionId)
@@ -323,7 +323,7 @@ class PendingNfcSessionStoreTest {
     @Test
     fun `active returns the session before expiry`() {
         val clock = FakeClock()
-        val store = PendingNfcSessionStore(nowMillis = clock)
+        val store = PendingNfcSessionStore(nowMillis = { clock.now })
         store.set(url)
         clock.now = 1000L + PendingNfcSessionStore.DEFAULT_TTL_MILLIS - 1
         assertNotNull(store.active())
@@ -332,7 +332,7 @@ class PendingNfcSessionStoreTest {
     @Test
     fun `active returns null after ttl expiry`() {
         val clock = FakeClock()
-        val store = PendingNfcSessionStore(nowMillis = clock)
+        val store = PendingNfcSessionStore(nowMillis = { clock.now })
         store.set(url)
         clock.now = 1000L + PendingNfcSessionStore.DEFAULT_TTL_MILLIS
         assertNull(store.active())
@@ -340,28 +340,28 @@ class PendingNfcSessionStoreTest {
 
     @Test
     fun `set rejects url without secret`() {
-        val store = PendingNfcSessionStore(nowMillis = FakeClock())
+        val store = PendingNfcSessionStore(nowMillis = { 1000L })
         assertNull(store.set("https://swapapp-web.onrender.com/view/abcd1234"))
         assertNull(store.active())
     }
 
     @Test
     fun `set rejects url without view segment`() {
-        val store = PendingNfcSessionStore(nowMillis = FakeClock())
+        val store = PendingNfcSessionStore(nowMillis = { 1000L })
         assertNull(store.set("https://swapapp-web.onrender.com/?sig=wxyz9876"))
         assertNull(store.active())
     }
 
     @Test
     fun `set rejects malformed url`() {
-        val store = PendingNfcSessionStore(nowMillis = FakeClock())
+        val store = PendingNfcSessionStore(nowMillis = { 1000L })
         assertNull(store.set("not a url"))
         assertNull(store.active())
     }
 
     @Test
     fun `clear removes the session`() {
-        val store = PendingNfcSessionStore(nowMillis = FakeClock())
+        val store = PendingNfcSessionStore(nowMillis = { 1000L })
         store.set(url)
         store.clear()
         assertNull(store.active())
@@ -369,7 +369,7 @@ class PendingNfcSessionStoreTest {
 
     @Test
     fun `replacement atomically swaps the session`() {
-        val store = PendingNfcSessionStore(nowMillis = FakeClock())
+        val store = PendingNfcSessionStore(nowMillis = { 1000L })
         store.set(url)
         val other = "https://swapapp-web.onrender.com/view/second12?sig=secret34"
         store.set(other)
