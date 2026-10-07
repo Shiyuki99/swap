@@ -1,20 +1,20 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_nfc_hce/flutter_nfc_hce.dart';
+import 'package:flutter/services.dart';
 
 /// NFC Service for URL sharing via HCE (Host Card Emulation).
-/// Uses patched flutter_nfc_hce package that creates proper URI NDEF records.
-/// Note: HCE is only available on Android. iOS does not support third-party HCE.
+/// Talks to the app-owned Kotlin HCE implementation over the `swap/nfc`
+/// method channel. HCE is only available on Android; iOS does not support
+/// third-party HCE.
 class NFCService {
-  final FlutterNfcHce _nfcHce = FlutterNfcHce();
+  static const MethodChannel _channel = MethodChannel('swap/nfc');
   bool _isHceActive = false;
 
   /// Check if NFC HCE is supported on this device.
   Future<bool> isNFCAvailable() async {
     try {
-      final isSupported = await _nfcHce.isNfcHceSupported();
-      return isSupported == true;
-    } catch (e) {
-      debugPrint('[NFC] Error checking NFC support: $e');
+      return await _channel.invokeMethod<bool>('isSupported') == true;
+    } on PlatformException catch (e) {
+      debugPrint('[NFC] Error checking NFC support: ${e.message}');
       return false;
     }
   }
@@ -22,44 +22,27 @@ class NFCService {
   /// Check if NFC is enabled on the device.
   Future<bool> isNFCEnabled() async {
     try {
-      final isEnabled = await _nfcHce.isNfcEnabled();
-      return isEnabled == true;
-    } catch (e) {
-      debugPrint('[NFC] Error checking NFC enabled: $e');
+      return await _channel.invokeMethod<bool>('isEnabled') == true;
+    } on PlatformException catch (e) {
+      debugPrint('[NFC] Error checking NFC enabled: ${e.message}');
       return false;
     }
   }
 
   /// Start broadcasting the URL via NFC HCE.
-  /// The patched flutter_nfc_hce will detect http/https URLs and create
-  /// proper URI NDEF records (RTD_URI) instead of TEXT records.
+  /// The native side parses the session pair from the URL and stores an
+  /// immutable NDEF snapshot served by SwapHostApduService.
   Future<void> writeUUID(String urlToSend) async {
-    debugPrint('[NFC] Starting HCE with URL: $urlToSend');
-
+    debugPrint('[NFC] Starting HCE session');
     try {
-      // Check if NFC is supported
-      final isSupported = await _nfcHce.isNfcHceSupported();
-      if (isSupported != true) {
-        debugPrint('[NFC] NFC HCE not supported on this device');
-        return;
+      final started =
+          await _channel.invokeMethod<bool>('startSession', {'url': urlToSend});
+      _isHceActive = started == true;
+      if (!_isHceActive) {
+        debugPrint('[NFC] Native side rejected the session URL');
       }
-
-      // Check if NFC is enabled
-      final isEnabled = await _nfcHce.isNfcEnabled();
-      if (isEnabled != true) {
-        debugPrint('[NFC] NFC is not enabled');
-        return;
-      }
-
-      // Start NFC HCE with the URL
-      // The patched plugin will create a URI record for http/https URLs
-      final result = await _nfcHce.startNfcHce(urlToSend);
-      debugPrint('[NFC] startNfcHce result: $result');
-
-      _isHceActive = true;
-      debugPrint('[NFC] HCE is now active and broadcasting URL');
-    } catch (e) {
-      debugPrint('[NFC] Error starting HCE: $e');
+    } on PlatformException catch (e) {
+      debugPrint('[NFC] Error starting HCE: ${e.message}');
     }
   }
 
@@ -67,11 +50,11 @@ class NFCService {
   Future<void> stopSession() async {
     debugPrint('[NFC] Stopping HCE session');
     try {
-      await _nfcHce.stopNfcHce();
+      await _channel.invokeMethod<bool>('stopSession');
+    } on PlatformException catch (e) {
+      debugPrint('[NFC] Error stopping HCE: ${e.message}');
+    } finally {
       _isHceActive = false;
-      debugPrint('[NFC] HCE session stopped');
-    } catch (e) {
-      debugPrint('[NFC] Error stopping HCE: $e');
     }
   }
 
