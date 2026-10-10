@@ -64,12 +64,23 @@ class NFCService {
   }
 
   /// Route our AIDs to SwapHostApduService while the app is foreground.
-  /// No-op on failure — HCE still serves, just without routing priority.
-  Future<void> setPreferredService() async {
+  /// Returns false when the OS rejects the request (activity not resumed or
+  /// user forbids foreground override of the wallet) — HCE still serves,
+  /// just without routing priority.
+  Future<bool> setPreferredService() async {
     try {
-      await _channel.invokeMethod<bool>('setPreferred');
+      final preferred =
+          await _channel.invokeMethod<bool>('setPreferred') == true;
+      debugPrint('[NFC] Preferred service set: $preferred');
+      if (!preferred) {
+        final allowed =
+            await _channel.invokeMethod<bool>('allowsForegroundPreference');
+        debugPrint('[NFC] Foreground override allowed: $allowed');
+      }
+      return preferred;
     } on PlatformException catch (e) {
       debugPrint('[NFC] Error setting preferred service: ${e.message}');
+      return false;
     }
   }
 

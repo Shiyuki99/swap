@@ -64,6 +64,15 @@ void main() {
     expect(methods, ['startSession']);
   });
 
+  test('setPreferredService returns native result', () async {
+    handler = (call) async {
+      if (call.method == 'setPreferred') return false;
+      if (call.method == 'allowsForegroundPreference') return true;
+      return true;
+    };
+    expect(await service.setPreferredService(), isFalse);
+  });
+
   test('stopSession unsets preferred service', () async {
     final methods = <String>[];
     handler = (call) async {

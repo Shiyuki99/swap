@@ -39,6 +39,7 @@ object NfcMethodChannel {
                 }
                 "setPreferred" -> result.success(setPreferred(activity))
                 "unsetPreferred" -> result.success(unsetPreferred(activity))
+                "allowsForegroundPreference" -> result.success(allowsForegroundPreference(activity))
                 else -> result.notImplemented()
             }
         }
@@ -67,5 +68,17 @@ object NfcMethodChannel {
         val adapter = NfcAdapter.getDefaultAdapter(activity) ?: return false
         val emulation = CardEmulation.getInstance(adapter)
         return emulation.unsetPreferredService(activity)
+    }
+
+    /**
+     * False when the user forbids foreground apps overriding the default
+     * wallet and our NDEF AID collides with a wallet-owned AID. In that
+     * case setPreferred() fails and only a settings change
+     * (Tap & pay → allow foreground override) can fix routing.
+     */
+    private fun allowsForegroundPreference(activity: Activity): Boolean {
+        val adapter = NfcAdapter.getDefaultAdapter(activity) ?: return false
+        val emulation = CardEmulation.getInstance(adapter)
+        return emulation.categoryAllowsForegroundPreference(CardEmulation.CATEGORY_OTHER)
     }
 }
