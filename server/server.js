@@ -37,7 +37,7 @@ function stopCleanup() {
 const statsFile = process.env.SWAP_STATS_FILE || path.join(__dirname, 'stats.json');
 app.locals.statsStore = new StatsStore(statsFile);
 
-const LATEST_APP_VERSION = '1.0.0+5'; // Defines current version
+const LATEST_APP_VERSION = '1.1.0+6'; // Defines current version
 
 // ============================================================================
 // MIDDLEWARE

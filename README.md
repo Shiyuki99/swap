@@ -145,8 +145,8 @@ The server is designed to be deployed on Render or any Node.js host. Just set th
 A GitHub Actions workflow automatically builds a signed release APK when a version tag is pushed:
 
 ```bash
-git tag v1.0.1
-git push origin main v1.0.1
+git tag v1.1.0
+git push origin main v1.1.0
 ```
 
 The keystore is stored as GitHub Secrets (`KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) and decoded at build time.
