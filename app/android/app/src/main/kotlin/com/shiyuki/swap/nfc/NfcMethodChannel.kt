@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.nfc.NfcAdapter
 import android.nfc.cardemulation.CardEmulation
+import android.util.Log
+import com.shiyuki.swap.MainActivity
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 
@@ -17,8 +19,9 @@ import io.flutter.plugin.common.MethodChannel
  */
 object NfcMethodChannel {
     private const val CHANNEL = "swap/nfc"
+    private const val TAG = "SwapNfc"
 
-    fun register(messenger: BinaryMessenger, activity: Activity) {
+    fun register(messenger: BinaryMessenger, activity: MainActivity) {
         val appContext = activity.applicationContext
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -29,16 +32,18 @@ object NfcMethodChannel {
                     val session = url?.let { PendingNfcSessionStore.shared.set(it) }
                     if (session != null) {
                         SessionDisk.save(appContext, session)
+                        activity.setNfcSharingActive(true)
                     }
                     result.success(session != null)
                 }
                 "stopSession" -> {
                     PendingNfcSessionStore.shared.clear()
                     SessionDisk.clear(appContext)
+                    activity.setNfcSharingActive(false)
                     result.success(true)
                 }
-                "setPreferred" -> result.success(setPreferred(activity))
-                "unsetPreferred" -> result.success(unsetPreferred(activity))
+                "setPreferred" -> result.success(applyPreferred(activity))
+                "unsetPreferred" -> result.success(clearPreferred(activity))
                 "allowsForegroundPreference" -> result.success(allowsForegroundPreference(activity))
                 else -> result.notImplemented()
             }
@@ -57,14 +62,23 @@ object NfcMethodChannel {
      * payment AIDs owned by wallets — readers fetching a URL never select
      * those). Must be called from a resumed activity; returns false otherwise.
      */
-    private fun setPreferred(activity: Activity): Boolean {
+    fun applyPreferred(activity: Activity): Boolean {
         val adapter = NfcAdapter.getDefaultAdapter(activity) ?: return false
         val emulation = CardEmulation.getInstance(adapter)
         val component = ComponentName(activity, SwapHostApduService::class.java)
-        return emulation.setPreferredService(activity, component)
+        val accepted = emulation.setPreferredService(activity, component)
+        if (!accepted) {
+            val allowed = allowsForegroundPreference(activity)
+            Log.w(
+                TAG,
+                "setPreferredService rejected (activityResumed=${activity.hasWindowFocus()}, " +
+                    "foregroundOverrideAllowed=$allowed)",
+            )
+        }
+        return accepted
     }
 
-    private fun unsetPreferred(activity: Activity): Boolean {
+    fun clearPreferred(activity: Activity): Boolean {
         val adapter = NfcAdapter.getDefaultAdapter(activity) ?: return false
         val emulation = CardEmulation.getInstance(adapter)
         return emulation.unsetPreferredService(activity)

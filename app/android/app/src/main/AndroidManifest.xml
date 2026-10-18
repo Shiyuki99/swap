@@ -58,13 +58,13 @@
             
             <!-- Deep linking: Handle SWAP profile URLs -->
             <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
-            <!-- Update the host to match swapDomain in platform_config.dart -->
+            <!-- Verified App Link host must match swapDomain in platform_config.dart
+                 and the assetlinks.json served by that exact host. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="swapapp.ddns.net" android:pathPrefix="/view/"/>
-                <data android:scheme="http" android:host="swapapp.ddns.net" android:pathPrefix="/view/"/>
+                <data android:scheme="https" android:host="swapapp-web.onrender.com" android:pathPrefix="/view/"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

@@ -18,7 +18,12 @@ object Apdu {
         0x00, 0xB0.toByte(), 0x00, 0x00, 0x0F,
     )
 
-    /** CC response: mapping v2.0, NDEF file E1 04, read/write without security. */
+    /**
+     * CC response: mapping v2.0, NDEF file E1 04.
+     * Write access is advertised as 0x00 (denied) because this tag is
+     * read-only: UPDATE BINARY is answered with 6985. Advertising 0xFF made
+     * readers probe writes and then fail.
+     */
     val CAPABILITY_CONTAINER_RESPONSE = byteArrayOf(
         0x00, 0x0F,
         0x20,
@@ -29,7 +34,7 @@ object Apdu {
         0xE1.toByte(), 0x04,
         0x00, 0xFF.toByte(),
         0x00,
-        0xFF.toByte(),
+        0x00,
         0x90.toByte(), 0x00,
     )
 
@@ -44,4 +49,24 @@ object Apdu {
 
     val A_OKAY = byteArrayOf(0x90.toByte(), 0x00)
     val A_ERROR = byteArrayOf(0x6A.toByte(), 0x82.toByte())
+
+    /** 6985: instruction not supported (e.g. UPDATE BINARY on a read-only tag). */
+    val A_NOT_SUPPORTED = byteArrayOf(0x69.toByte(), 0x85.toByte())
+
+    /** Instruction bytes the Type 4 processor understands. */
+    const val INS_SELECT = 0xA4
+    const val INS_READ_BINARY = 0xB0
+    const val INS_UPDATE_BINARY = 0xD6
+
+    /** Capability container file id (E1 03) and NDEF file id (E1 04). */
+    val CC_FILE_ID = byteArrayOf(0xE1.toByte(), 0x03)
+    val NDEF_FILE_ID = byteArrayOf(0xE1.toByte(), 0x04)
+
+    /** NFC Forum Type 4 NDEF application AID. */
+    val AID_NDEF_APPLICATION = byteArrayOf(
+        0xD2.toByte(), 0x76, 0x00, 0x00, 0x85.toByte(), 0x01, 0x01,
+    )
+
+    /** Max response data we return for a single READ BINARY (transceive-safe). */
+    const val MAX_CHUNK = 253
 }
